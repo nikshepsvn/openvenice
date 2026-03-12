@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="7" fill="#0a0a0a"/>
+  <g fill="white">
+    <rect x="6.2" y="7.5" width="1.6" height="18" rx="0.8" transform="rotate(-42 6.2 7.5)"/>
+    <rect x="24.2" y="6.3" width="1.6" height="18" rx="0.8" transform="rotate(42 24.2 6.3)"/>
+    <polygon points="7.2,8.8 3.8,7.2 4.5,5.5 8.5,7.2"/>
+    <polygon points="24.8,8.8 28.2,7.2 27.5,5.5 23.5,7.2"/>
+    <rect x="14.3" y="14.3" width="3.4" height="3.4" rx="0.4" transform="rotate(45 16 16)"/>
+    <circle cx="9.2" cy="24.5" r="4"/>
+    <circle cx="9.2" cy="24.5" r="1.7" fill="#0a0a0a"/>
+    <circle cx="9.2" cy="22.9" r="0.9" fill="#0a0a0a"/>
+    <circle cx="9.2" cy="26.1" r="0.9" fill="#0a0a0a"/>
+    <circle cx="7.6" cy="24.5" r="0.9" fill="#0a0a0a"/>
+    <circle cx="10.8" cy="24.5" r="0.9" fill="#0a0a0a"/>
+    <circle cx="22.8" cy="24.5" r="4"/>
+    <circle cx="22.8" cy="24.5" r="1.7" fill="#0a0a0a"/>
+    <circle cx="22.8" cy="22.9" r="0.9" fill="#0a0a0a"/>
+    <circle cx="22.8" cy="26.1" r="0.9" fill="#0a0a0a"/>
+    <circle cx="21.2" cy="24.5" r="0.9" fill="#0a0a0a"/>
+    <circle cx="24.4" cy="24.5" r="0.9" fill="#0a0a0a"/>
+    <path d="M16 5.5L12.5 8.5V12.5L16 10.5L19.5 12.5V8.5Z"/>
+  </g>
+</svg>
