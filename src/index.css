@@ -5,7 +5,7 @@
   --font-mono: "JetBrains Mono", monospace;
 }
 
-html { color-scheme: dark; zoom: 1.5; }
+html { color-scheme: dark; }
 body { margin: 0; background: #0a0a0a; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
 ::selection { background: rgba(255,255,255,0.1); }
