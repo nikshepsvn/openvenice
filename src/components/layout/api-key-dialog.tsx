@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuthStore } from '../../stores/auth-store'
 import { VeniceLogo } from '../ui/logo'
 import { toast } from '../../stores/toast-store'
+import { validateVeniceKey } from '../../lib/validate-venice-key'
 
 const MIN_PASSPHRASE = 8
 
@@ -36,6 +37,11 @@ export function ApiKeyDialog({ open, onClose }: { open: boolean; onClose: () => 
     setBusy(true)
     setError(null)
     try {
+      const validation = await validateVeniceKey(value.trim())
+      if (!validation.ok) {
+        setError(validation.message)
+        return
+      }
       await setApiKey(value.trim(), remember ? { passphrase } : undefined)
       toast.success(remember ? 'Key saved (encrypted)' : 'Key set for this session')
       onClose()
@@ -164,7 +170,10 @@ export function ApiKeyDialog({ open, onClose }: { open: boolean; onClose: () => 
           </button>
         )}
 
-        {error && <p role="alert" className="text-[13px] text-red-300 mt-3">{error}</p>}
+        {/* Reserved slot: keeps the modal height stable whether or not an error is shown. */}
+        <div className="min-h-[2.25rem] mt-3" aria-live="polite">
+          {error && <p role="alert" className="text-[13px] text-red-300 leading-snug">{error}</p>}
+        </div>
 
         <div className="flex flex-wrap gap-2 mt-6 justify-end">
           {(apiKey || hasEncrypted) && (
