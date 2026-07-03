@@ -2,7 +2,7 @@ import type { VeniceError } from '../types/venice'
 import { useAuthStore } from '../stores/auth-store'
 
 const ENV_BASE = (import.meta.env.VITE_VENICE_BASE_URL as string | undefined)?.replace(/\/$/, '')
-const BASE_URL = ENV_BASE || (import.meta.env.DEV ? '/venice/api/v1' : 'https://api.venice.ai/api/v1')
+export const BASE_URL = ENV_BASE || (import.meta.env.DEV ? '/venice/api/v1' : 'https://api.venice.ai/api/v1')
 
 const RETRY_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504])
 const MAX_RETRIES = 2
