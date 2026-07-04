@@ -2,7 +2,7 @@ import type { Node, Edge } from '@xyflow/react'
 import type { VeniceNodeData, NodeResult } from '../stores/workflow-store'
 import { NODE_SCHEMAS, type IOKind } from './workflow-schema'
 import { validateWorkflow } from './workflow-validator'
-import { venice, veniceBlob } from './venice-client'
+import { venice, veniceBlob, veniceFetch } from './venice-client'
 import type { ChatCompletionResponse, ImageGenerateResponse, MusicQueueResponse, MusicRetrieveResponse, VideoQueueResponse, VideoRetrieveResponse } from '../types/venice'
 
 const POLL_INTERVAL_MS = 3000
@@ -64,6 +64,7 @@ function resolvePrompt(template: string, input: string): string {
 
 interface PollOptions<T> {
   path: string
+  model: string
   id: string
   getStatus: (r: T) => string
   getResult: (r: T) => string | undefined
@@ -71,18 +72,28 @@ interface PollOptions<T> {
   signal?: AbortSignal
 }
 
-async function pollUntilDone<T>({ path, id, getStatus, getResult, getError, signal }: PollOptions<T>): Promise<string> {
+async function pollUntilDone<T>({ path, model, id, getStatus, getResult, getError, signal }: PollOptions<T>): Promise<string> {
   for (let i = 0; i < POLL_MAX_ATTEMPTS; i++) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     await new Promise<void>((resolve, reject) => {
       const t = setTimeout(resolve, POLL_INTERVAL_MS)
       signal?.addEventListener('abort', () => { clearTimeout(t); reject(new DOMException('Aborted', 'AbortError')) }, { once: true })
     })
-    const result = await venice<T>(path, {
+    // /video/retrieve and /audio/retrieve both return JSON while processing
+    // and a binary media body (video/mp4 / audio/mpeg) once complete. Branch
+    // on Content-Type rather than calling res.json() unconditionally, which
+    // would break on the binary case and spin forever on a completed job.
+    const res = await veniceFetch(path, {
       method: 'POST',
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ model, queue_id: id, delete_media_on_completion: true }),
       signal,
     })
+    const contentType = res.headers.get('content-type') ?? ''
+    if (!contentType.includes('application/json')) {
+      const blob = await res.blob()
+      return URL.createObjectURL(blob)
+    }
+    const result = (await res.json()) as T
     const status = getStatus(result).toLowerCase()
     if (status === 'completed') {
       const url = getResult(result)
@@ -180,6 +191,7 @@ async function executeNode(
       })
       const url = await pollUntilDone<MusicRetrieveResponse>({
         path: '/audio/retrieve',
+        model: queueResp.model,
         id: queueResp.queue_id,
         getStatus: (r) => r.status,
         getResult: (r) => r.audio_url,
@@ -206,6 +218,7 @@ async function executeNode(
       const videoId = queueResp.queue_id || queueResp.id || ''
       const url = await pollUntilDone<VideoRetrieveResponse>({
         path: '/video/retrieve',
+        model: queueResp.model,
         id: videoId,
         getStatus: (r) => r.status,
         getResult: (r) => r.video_url,

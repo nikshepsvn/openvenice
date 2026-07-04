@@ -60,7 +60,7 @@ interface VeniceFetchOptions extends RequestInit {
   retries?: number
 }
 
-async function veniceFetch(path: string, options: VeniceFetchOptions): Promise<Response> {
+export async function veniceFetch(path: string, options: VeniceFetchOptions): Promise<Response> {
   const { stream, noAuth, retries = MAX_RETRIES, ...fetchOptions } = options
   const headers = new Headers(fetchOptions.headers)
   if (!noAuth) headers.set('Authorization', `Bearer ${getApiKey()}`)
