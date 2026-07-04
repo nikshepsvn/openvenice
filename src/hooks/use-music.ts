@@ -57,7 +57,7 @@ export function useMusic() {
         // unconditionally, which breaks on the binary case.
         const res = await veniceFetch('/audio/retrieve', {
           method: 'POST',
-          body: JSON.stringify({ model: modelRef.current, queue_id: requestIdRef.current }),
+          body: JSON.stringify({ model: modelRef.current, queue_id: requestIdRef.current, delete_media_on_completion: true }),
         })
         const contentType = res.headers.get('content-type') ?? ''
 

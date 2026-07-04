@@ -85,7 +85,7 @@ async function pollUntilDone<T>({ path, model, id, getStatus, getResult, getErro
     // would break on the binary case and spin forever on a completed job.
     const res = await veniceFetch(path, {
       method: 'POST',
-      body: JSON.stringify({ model, queue_id: id }),
+      body: JSON.stringify({ model, queue_id: id, delete_media_on_completion: true }),
       signal,
     })
     const contentType = res.headers.get('content-type') ?? ''
