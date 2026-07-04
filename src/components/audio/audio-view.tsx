@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useModels } from '../../hooks/use-models'
 import { useAuthStore } from '../../stores/auth-store'
@@ -16,36 +16,39 @@ const AUDIO_EXAMPLES = [
   'Did you know? A single octopus has nine brains — one central, plus one in each arm.',
 ]
 
-const VOICES = [
-  // American Female
-  'af_alloy', 'af_aoede', 'af_bella', 'af_heart', 'af_jessica', 'af_kore', 'af_nicole', 'af_nova', 'af_river', 'af_sarah', 'af_sky',
-  // American Male
-  'am_adam', 'am_echo', 'am_eric', 'am_fable', 'am_liam', 'am_michael', 'am_onyx',
-  // British Female
-  'bf_alice', 'bf_emma', 'bf_isabella', 'bf_lily',
-  // British Male
-  'bm_daniel', 'bm_fable', 'bm_george', 'bm_lewis',
-  // Chinese
-  'zf_xiaobei', 'zf_xiaoni', 'zf_xiaoxuan', 'zf_xiaoyan', 'zf_xiaoyi',
-  'zm_yunjian', 'zm_yunxi', 'zm_yunxia', 'zm_yunyang',
-  // Japanese
-  'jf_alpha', 'jf_gongitsune', 'jf_nezumi', 'jf_tebukuro',
-  'jm_kumo',
-  // French
-  'ff_siwis',
-  // Hindi
-  'hf_alpha', 'hf_beta',
-  'hm_omega', 'hm_psi',
-  // Italian
-  'if_sara',
-  'im_nicola',
-  // Portuguese (Brazil)
-  'pf_dora',
-  'pm_alex', 'pm_santa',
-  // Spanish
-  'ef_dora',
-  'em_alex', 'em_santa',
-]
+const KOKORO_LANG_MAP: Record<string, { flag: string; gender: string; lang: string }> = {
+  af: { flag: '🇺🇸', gender: 'F', lang: 'American English (Female)' },
+  am: { flag: '🇺🇸', gender: 'M', lang: 'American English (Male)' },
+  bf: { flag: '🇬🇧', gender: 'F', lang: 'British English (Female)' },
+  bm: { flag: '🇬🇧', gender: 'M', lang: 'British English (Male)' },
+  zf: { flag: '🇨🇳', gender: 'F', lang: 'Mandarin (Female)' },
+  zm: { flag: '🇨🇳', gender: 'M', lang: 'Mandarin (Male)' },
+  jf: { flag: '🇯🇵', gender: 'F', lang: 'Japanese (Female)' },
+  jm: { flag: '🇯🇵', gender: 'M', lang: 'Japanese (Male)' },
+  ff: { flag: '🇫🇷', gender: 'F', lang: 'French (Female)' },
+  hf: { flag: '🇮🇳', gender: 'F', lang: 'Hindi (Female)' },
+  hm: { flag: '🇮🇳', gender: 'M', lang: 'Hindi (Male)' },
+  if: { flag: '🇮🇹', gender: 'F', lang: 'Italian (Female)' },
+  im: { flag: '🇮🇹', gender: 'M', lang: 'Italian (Male)' },
+  pf: { flag: '🇧🇷', gender: 'F', lang: 'Portuguese (Female)' },
+  pm: { flag: '🇧🇷', gender: 'M', lang: 'Portuguese (Male)' },
+  ef: { flag: '🇪🇸', gender: 'F', lang: 'Spanish (Female)' },
+  em: { flag: '🇪🇸', gender: 'M', lang: 'Spanish (Male)' },
+}
+
+const KOKORO_VOICE_RE = /^[a-z]{2}_/
+const isKokoroVoice = (v: string) => KOKORO_VOICE_RE.test(v)
+
+function formatVoiceLabel(v: string): string {
+  if (isKokoroVoice(v)) {
+    const prefix = v.slice(0, 2)
+    const name = v.slice(3)
+    const meta = KOKORO_LANG_MAP[prefix]
+    return meta ? `${meta.flag} ${meta.gender} · ${name} (${meta.lang})` : v
+  }
+  return v
+}
+
 const FORMATS = ['mp3', 'opus', 'aac', 'flac', 'wav'] as const
 
 export function AudioView() {
@@ -56,7 +59,7 @@ export function AudioView() {
 
   const [tab, setTab] = useState<'tts' | 'transcribe'>('tts')
   const [text, setText] = useState('')
-  const [voice, setVoice] = useState('af_heart')
+  const [voice, setVoice] = useState('')
   const [speed, setSpeed] = useState(1)
   const [format, setFormat] = useState<string>('mp3')
   const [audioUrl, setAudioBlob] = useBlobUrl()
@@ -67,32 +70,23 @@ export function AudioView() {
   const tts = useTTS()
   const transcription = useTranscription()
 
-  const voiceOptions = VOICES.map((v) => {
-    const prefix = v.slice(0, 2)
-    const langMap: Record<string, { flag: string; gender: string; lang: string }> = {
-      af: { flag: '🇺🇸', gender: 'F', lang: 'American English (Female)' },
-      am: { flag: '🇺🇸', gender: 'M', lang: 'American English (Male)' },
-      bf: { flag: '🇬🇧', gender: 'F', lang: 'British English (Female)' },
-      bm: { flag: '🇬🇧', gender: 'M', lang: 'British English (Male)' },
-      zf: { flag: '🇨🇳', gender: 'F', lang: 'Mandarin (Female)' },
-      zm: { flag: '🇨🇳', gender: 'M', lang: 'Mandarin (Male)' },
-      jf: { flag: '🇯🇵', gender: 'F', lang: 'Japanese (Female)' },
-      jm: { flag: '🇯🇵', gender: 'M', lang: 'Japanese (Male)' },
-      ff: { flag: '🇫🇷', gender: 'F', lang: 'French (Female)' },
-      hf: { flag: '🇮🇳', gender: 'F', lang: 'Hindi (Female)' },
-      hm: { flag: '🇮🇳', gender: 'M', lang: 'Hindi (Male)' },
-      if: { flag: '🇮🇹', gender: 'F', lang: 'Italian (Female)' },
-      im: { flag: '🇮🇹', gender: 'M', lang: 'Italian (Male)' },
-      pf: { flag: '🇧🇷', gender: 'F', lang: 'Portuguese (Female)' },
-      pm: { flag: '🇧🇷', gender: 'M', lang: 'Portuguese (Male)' },
-      ef: { flag: '🇪🇸', gender: 'F', lang: 'Spanish (Female)' },
-      em: { flag: '🇪🇸', gender: 'M', lang: 'Spanish (Male)' },
+  const modelVoices = useMemo(() => {
+    const m = models?.find((x) => x.id === model)
+    return m?.model_spec?.voices ?? []
+  }, [models, model])
+
+  const voiceOptions = useMemo(
+    () => modelVoices.map((v) => ({ value: v, label: formatVoiceLabel(v) })),
+    [modelVoices],
+  )
+
+  useEffect(() => {
+    if (modelVoices.length === 0) return
+    if (!voice || !modelVoices.includes(voice)) {
+      setVoice(modelVoices[0])
     }
-    const meta = langMap[prefix]
-    const name = v.slice(3)
-    const display = meta ? `${meta.flag} ${meta.gender} · ${name} (${meta.lang})` : v
-    return { value: v, label: display }
-  })
+  }, [modelVoices, voice])
+
   const formatOptions = FORMATS.map((f) => ({ value: f, label: f.toUpperCase() }))
 
   const handleTTS = () => {
@@ -133,7 +127,7 @@ export function AudioView() {
               <input type="range" min={0.25} max={4} step={0.25} value={speed} onChange={(e) => setSpeed(Number(e.target.value))} className="w-full" />
             </div>
           </div>
-          <PrimaryButton onClick={handleTTS} disabled={!text.trim() || !apiKey} loading={tts.isPending} size="lg">Generate Speech</PrimaryButton>
+          <PrimaryButton onClick={handleTTS} disabled={!text.trim() || !voice || !apiKey} loading={tts.isPending} size="lg">Generate Speech</PrimaryButton>
           {tts.error && <ErrorText>{tts.error.message}</ErrorText>}
         </>
       ) : (
