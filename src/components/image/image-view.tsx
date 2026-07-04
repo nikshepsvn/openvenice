@@ -7,6 +7,7 @@ import { useAuthStore } from '../../stores/auth-store'
 import { Select } from '../ui/select'
 import { Label, TextArea, PrimaryButton, PillGroup, ErrorText, ExamplePrompts } from '../ui/shared'
 import { GenerationView } from '../ui/generation-view'
+import { cn } from '../../lib/utils'
 import type { ImageConstraints } from '../../types/venice'
 
 const IMAGE_EXAMPLES = [
@@ -59,6 +60,7 @@ export function ImageView() {
   const [steps, setSteps] = useState(defaultSteps)
   const [variants, setVariants] = useState(1)
   const [hideWatermark] = useState(true)
+  const [safeMode, setSafeMode] = useState(false)
   const [images, setImages] = useState<string[]>([])
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
 
@@ -98,6 +100,7 @@ export function ImageView() {
       style_preset: style || undefined,
       variants,
       hide_watermark: hideWatermark,
+      safe_mode: safeMode,
       steps,
     }
 
@@ -152,6 +155,26 @@ export function ImageView() {
       <div>
         <Label hint={String(variants)}>Variants</Label>
         <input type="range" min={1} max={4} value={variants} onChange={(e) => setVariants(Number(e.target.value))} className="w-full" />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <Label>Safe mode</Label>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={safeMode}
+          onClick={() => setSafeMode(!safeMode)}
+          aria-label="Toggle safe mode"
+          className={cn(
+            'w-8 h-[18px] rounded-full transition-colors relative',
+            safeMode ? 'bg-white' : 'bg-white/[0.08]',
+          )}
+        >
+          <div className={cn(
+            'absolute top-[2px] w-[14px] h-[14px] rounded-full transition-all',
+            safeMode ? 'left-[16px] bg-black' : 'left-[2px] bg-white/30',
+          )} />
+        </button>
       </div>
 
       <PrimaryButton onClick={handleGenerate} disabled={!prompt.trim() || !apiKey} loading={mutation.isPending} size="lg">
