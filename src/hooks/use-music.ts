@@ -14,6 +14,8 @@ export function useMusic() {
   const [status, setStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle')
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [suggestedPrompt, setSuggestedPrompt] = useState<string | null>(null)
+  const [issues, setIssues] = useState<string[] | null>(null)
   const [elapsedMs, setElapsedMs] = useState(0)
   const pollRef = useRef<ReturnType<typeof setInterval>>(undefined)
   const tickRef = useRef<ReturnType<typeof setInterval>>(undefined)
@@ -113,10 +115,19 @@ export function useMusic() {
       setAudioUrl(null)
       audioUrlRef.current = null
       setError(null)
+      setSuggestedPrompt(null)
+      setIssues(null)
       startPolling()
     },
     onError: (err) => {
       setError(err instanceof Error ? err.message : 'Queue failed')
+      if (err instanceof VeniceAPIError) {
+        setSuggestedPrompt(err.suggestedPrompt ?? null)
+        setIssues(err.issues ?? null)
+      } else {
+        setSuggestedPrompt(null)
+        setIssues(null)
+      }
       setStatus('failed')
     },
   })
@@ -126,6 +137,8 @@ export function useMusic() {
     stopPolling()
     setStatus('idle')
     setError(null)
+    setSuggestedPrompt(null)
+    setIssues(null)
     requestIdRef.current = null
     modelRef.current = null
     startedAtRef.current = null
@@ -147,6 +160,8 @@ export function useMusic() {
     status,
     audioUrl,
     error,
+    suggestedPrompt,
+    issues,
     elapsedMs,
     cancel,
     reset,

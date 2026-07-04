@@ -14,6 +14,8 @@ export function useVideo() {
   const [status, setStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle')
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [suggestedPrompt, setSuggestedPrompt] = useState<string | null>(null)
+  const [issues, setIssues] = useState<string[] | null>(null)
   const [elapsedMs, setElapsedMs] = useState(0)
   const pollRef = useRef<ReturnType<typeof setInterval>>(undefined)
   const tickRef = useRef<ReturnType<typeof setInterval>>(undefined)
@@ -128,10 +130,19 @@ export function useVideo() {
       setVideoUrl(null)
       videoUrlRef.current = null
       setError(null)
+      setSuggestedPrompt(null)
+      setIssues(null)
       startPolling()
     },
     onError: (err) => {
       setError(err instanceof Error ? err.message : 'Queue failed')
+      if (err instanceof VeniceAPIError) {
+        setSuggestedPrompt(err.suggestedPrompt ?? null)
+        setIssues(err.issues ?? null)
+      } else {
+        setSuggestedPrompt(null)
+        setIssues(null)
+      }
       setStatus('failed')
     },
   })
@@ -141,6 +152,8 @@ export function useVideo() {
     stopPolling()
     setStatus('idle')
     setError(null)
+    setSuggestedPrompt(null)
+    setIssues(null)
     requestIdRef.current = null
     modelRef.current = null
     downloadUrlRef.current = null
@@ -163,6 +176,8 @@ export function useVideo() {
     status,
     videoUrl,
     error,
+    suggestedPrompt,
+    issues,
     elapsedMs,
     cancel,
     reset,

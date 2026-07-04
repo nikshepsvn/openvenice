@@ -276,6 +276,29 @@ export interface CharactersResponse {
 }
 
 // Error types
+
+export interface VeniceErrorIssue {
+  code: string
+  message: string
+  path: (string | number)[]
+}
+
+// DetailedError — Zod validation failure (some 400s). `error` is a plain
+// string here, not the {message,type} object of StandardError.
+export interface VeniceDetailedError {
+  error: string
+  details?: { _errors: string[]; [field: string]: unknown }
+  issues?: VeniceErrorIssue[]
+}
+
+// ContentViolationError — 422 content policy. `suggested_prompt` is a
+// model-provided safe alternative the user can opt into.
+export interface VeniceContentViolationError {
+  error: string
+  suggested_prompt?: string
+}
+
+// StandardError — simple {error: "..."} shape (most 4xx/5xx).
 export interface VeniceError {
   error: {
     message: string
@@ -284,6 +307,9 @@ export interface VeniceError {
     suggested_prompt?: string
   }
 }
+
+// Union of all error response bodies the client may parse.
+export type VeniceErrorBody = VeniceError | VeniceDetailedError | VeniceContentViolationError
 
 // Conversation
 export interface Conversation {

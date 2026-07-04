@@ -1,4 +1,4 @@
-import type { VeniceError } from '../types/venice'
+import type { VeniceErrorBody, VeniceDetailedError, VeniceContentViolationError } from '../types/venice'
 import { useAuthStore } from '../stores/auth-store'
 
 const ENV_BASE = (import.meta.env.VITE_VENICE_BASE_URL as string | undefined)?.replace(/\/$/, '')
@@ -11,13 +11,21 @@ export class VeniceAPIError extends Error {
   status: number
   code?: string
   suggestedPrompt?: string
+  issues?: string[]
 
-  constructor(message: string, status: number, code?: string, suggestedPrompt?: string) {
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    suggestedPrompt?: string,
+    issues?: string[],
+  ) {
     super(message)
     this.name = 'VeniceAPIError'
     this.status = status
     this.code = code
     this.suggestedPrompt = suggestedPrompt
+    this.issues = issues
   }
 }
 
@@ -43,15 +51,39 @@ async function parseError(res: Response): Promise<VeniceAPIError> {
   let message = `HTTP ${res.status}`
   let code: string | undefined
   let suggestedPrompt: string | undefined
+  let issues: string[] | undefined
   try {
-    const err = (await res.json()) as VeniceError
-    message = err.error?.message ?? message
-    code = err.error?.code
-    suggestedPrompt = err.error?.suggested_prompt
+    const body = (await res.json()) as VeniceErrorBody
+
+    // Shape 1 — StandardError: { error: { message, type, code, suggested_prompt } }
+    // Shape 2 — DetailedError: { error: "...", details, issues } (Zod validation 400s)
+    // Shape 3 — ContentViolationError: { error: "...", suggested_prompt } (422)
+    // `error` may be a string (shapes 2/3) or an object (shape 1).
+    if (typeof body.error === 'string') {
+      message = body.error
+      // DetailedError — extract Zod issue messages
+      const detailed = body as Partial<VeniceDetailedError>
+      if (detailed.issues && Array.isArray(detailed.issues)) {
+        issues = detailed.issues.map((i) => i.message).filter(Boolean)
+      }
+      // ContentViolationError — extract suggested_prompt
+      const violation = body as Partial<VeniceContentViolationError>
+      if (violation.suggested_prompt) suggestedPrompt = violation.suggested_prompt
+    } else if (body.error && typeof body.error === 'object') {
+      message = body.error.message ?? message
+      code = body.error.code
+      suggestedPrompt = body.error.suggested_prompt
+    }
   } catch {
     /* keep default */
   }
-  return new VeniceAPIError(message, res.status, code, suggestedPrompt)
+  // If we only have generic "Invalid request" but extracted concrete Zod
+  // issues, prefer the issues as the user-facing message — "prompt must be
+  // at least 10 characters" is far more actionable than "Invalid request".
+  if (issues && issues.length > 0 && (message === 'Invalid request' || /^HTTP \d+$/.test(message))) {
+    message = issues.join(' · ')
+  }
+  return new VeniceAPIError(message, res.status, code, suggestedPrompt, issues)
 }
 
 interface VeniceFetchOptions extends RequestInit {

@@ -7,7 +7,11 @@ import { useAuthStore } from '../../stores/auth-store'
 import { Select } from '../ui/select'
 import { Label, TextArea, PrimaryButton, PillGroup, ErrorText, ExamplePrompts } from '../ui/shared'
 import { GenerationView } from '../ui/generation-view'
+import { VeniceAPIError } from '../../lib/venice-client'
+import { toast } from '../../stores/toast-store'
 import type { ImageConstraints } from '../../types/venice'
+
+const MIN_PROMPT_LENGTH = 10
 
 const IMAGE_EXAMPLES = [
   'A serene mountain lake at golden hour, low fog over the water, painterly',
@@ -62,6 +66,8 @@ export function ImageView() {
   const [images, setImages] = useState<string[]>([])
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
 
+  const promptTooShort = prompt.trim().length > 0 && prompt.trim().length < MIN_PROMPT_LENGTH
+
   // Build aspect ratio options from model constraints
   const aspectOptions = useMemo(() => {
     if (!hasAspectRatios) return []
@@ -89,6 +95,10 @@ export function ImageView() {
 
   const handleGenerate = () => {
     if (!prompt.trim()) return
+    if (prompt.trim().length < MIN_PROMPT_LENGTH) {
+      toast.error('Prompt too short', `Must be at least ${MIN_PROMPT_LENGTH} characters.`)
+      return
+    }
     const size = DEFAULT_SIZE_MAP[Number(sizeIdx)]
 
     const req: Record<string, unknown> = {
@@ -128,8 +138,11 @@ export function ImageView() {
   const controls = (
     <>
       <div>
-        <Label hint={`${prompt.length}/${promptLimit}`}>Prompt</Label>
+        <Label hint={`${prompt.trim().length}/${MIN_PROMPT_LENGTH}+ chars`}>Prompt</Label>
         <TextArea value={prompt} onChange={setPrompt} placeholder="A serene mountain landscape at golden hour…" />
+        {promptTooShort && (
+          <p className="text-[12px] text-amber-300/70 mt-1.5">Prompt must be at least {MIN_PROMPT_LENGTH} characters.</p>
+        )}
       </div>
       <div><Label>Negative prompt</Label><TextArea value={negativePrompt} onChange={setNegativePrompt} placeholder="blurry, low quality…" rows={2} /></div>
 
@@ -154,10 +167,37 @@ export function ImageView() {
         <input type="range" min={1} max={4} value={variants} onChange={(e) => setVariants(Number(e.target.value))} className="w-full" />
       </div>
 
-      <PrimaryButton onClick={handleGenerate} disabled={!prompt.trim() || !apiKey} loading={mutation.isPending} size="lg">
+      <PrimaryButton onClick={handleGenerate} disabled={!prompt.trim() || promptTooShort || !apiKey} loading={mutation.isPending} size="lg">
         {mutation.isPending ? 'Generating…' : 'Generate'}
       </PrimaryButton>
-      {mutation.error && <ErrorText>{mutation.error.message}</ErrorText>}
+      {mutation.error && (() => {
+        const apiErr = mutation.error instanceof VeniceAPIError ? mutation.error : null
+        const errMsg = mutation.error.message
+        const sug = apiErr?.suggestedPrompt
+        const iss = apiErr?.issues
+        return (
+          <div className="flex flex-col gap-2">
+            <ErrorText>{errMsg}</ErrorText>
+            {iss && iss.length > 0 && (
+              <ul className="text-[12.5px] text-amber-300/70 leading-relaxed list-disc pl-4">
+                {iss.map((issue, i) => <li key={i}>{issue}</li>)}
+              </ul>
+            )}
+            {sug && (
+              <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3">
+                <p className="text-[11px] uppercase tracking-[0.08em] text-white/40 font-semibold mb-1">Suggested prompt</p>
+                <p className="text-[13.5px] text-white/70 leading-relaxed">{sug}</p>
+                <button
+                  onClick={() => { setPrompt(sug); }}
+                  className="mt-2 text-[12.5px] font-medium text-[var(--color-accent)] hover:underline underline-offset-2"
+                >
+                  Use this prompt
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      })()}
     </>
   )
 

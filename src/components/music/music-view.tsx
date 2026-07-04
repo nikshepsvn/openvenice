@@ -6,7 +6,10 @@ import { useMusic } from '../../hooks/use-music'
 import { Label, TextArea, PrimaryButton, ErrorText } from '../ui/shared'
 import { GenerationView } from '../ui/generation-view'
 import { cn } from '../../lib/utils'
+import { toast } from '../../stores/toast-store'
 import type { MusicQueueRequest } from '../../types/venice'
+
+const MIN_PROMPT_LENGTH = 10
 
 // Model capabilities
 interface MusicModelConfig {
@@ -42,11 +45,17 @@ export function MusicView() {
   const [duration, setDuration] = useState(30)
   const [instrumental, setInstrumental] = useState(false)
 
-  const { queue, isQueueing, status, audioUrl, error, reset, cancel, elapsedMs } = useMusic()
+  const { queue, isQueueing, status, audioUrl, error, suggestedPrompt, issues, reset, cancel, elapsedMs } = useMusic()
   const isProcessing = status === 'queued' || status === 'processing'
+
+  const promptTooShort = prompt.trim().length > 0 && prompt.trim().length < MIN_PROMPT_LENGTH
 
   const handleGenerate = () => {
     if (!prompt.trim()) return
+    if (prompt.trim().length < MIN_PROMPT_LENGTH) {
+      toast.error('Prompt too short', `Must be at least ${MIN_PROMPT_LENGTH} characters.`)
+      return
+    }
     const req: MusicQueueRequest = {
       model,
       prompt: prompt.trim(),
@@ -57,11 +66,20 @@ export function MusicView() {
     queue(req)
   }
 
+  const useSuggestedPrompt = () => {
+    if (!suggestedPrompt) return
+    setPrompt(suggestedPrompt)
+    reset()
+  }
+
   const controls = (
     <>
       <div>
-        <Label>Prompt</Label>
+        <Label hint={`${prompt.trim().length}/${MIN_PROMPT_LENGTH}+ chars`}>Prompt</Label>
         <TextArea value={prompt} onChange={setPrompt} placeholder="An upbeat electronic track with a driving bassline and ethereal synths…" rows={4} />
+        {promptTooShort && (
+          <p className="text-[12px] text-amber-300/70 mt-1.5">Prompt must be at least {MIN_PROMPT_LENGTH} characters.</p>
+        )}
       </div>
 
       {config.lyrics && (
@@ -100,16 +118,35 @@ export function MusicView() {
 
       <PrimaryButton
         onClick={handleGenerate}
-        disabled={!prompt.trim() || !apiKey || isQueueing || isProcessing}
+        disabled={!prompt.trim() || promptTooShort || !apiKey || isQueueing || isProcessing}
         loading={isQueueing || isProcessing}
         size="lg"
       >
         {isProcessing ? (status === 'queued' ? 'Queued…' : 'Generating…') : 'Generate Music'}
       </PrimaryButton>
       {error && (
-        <div className="flex items-center justify-between gap-2">
-          <ErrorText>{error}</ErrorText>
-          <button onClick={reset} className="text-[13px] text-white/55 hover:text-white underline underline-offset-2 shrink-0 transition-colors">Reset</button>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <ErrorText>{error}</ErrorText>
+            <button onClick={reset} className="text-[13px] text-white/55 hover:text-white underline underline-offset-2 shrink-0 transition-colors">Reset</button>
+          </div>
+          {issues && issues.length > 0 && (
+            <ul className="text-[12.5px] text-amber-300/70 leading-relaxed list-disc pl-4">
+              {issues.map((issue, i) => <li key={i}>{issue}</li>)}
+            </ul>
+          )}
+          {suggestedPrompt && (
+            <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3">
+              <p className="text-[11px] uppercase tracking-[0.08em] text-white/40 font-semibold mb-1">Suggested prompt</p>
+              <p className="text-[13.5px] text-white/70 leading-relaxed">{suggestedPrompt}</p>
+              <button
+                onClick={useSuggestedPrompt}
+                className="mt-2 text-[12.5px] font-medium text-[var(--color-accent)] hover:underline underline-offset-2"
+              >
+                Use this prompt
+              </button>
+            </div>
+          )}
         </div>
       )}
     </>
