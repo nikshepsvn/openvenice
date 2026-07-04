@@ -63,6 +63,7 @@ export interface VeniceModel {
     description?: string
     constraints?: VideoConstraints | ImageConstraints
     model_sets?: string[]
+    voices?: string[]
     pricing?: {
       input?: { usd?: number }
       output?: { usd?: number }
