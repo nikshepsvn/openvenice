@@ -1,10 +1,14 @@
 import { useMutation } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { venice } from '../lib/venice-client'
+import { venice, veniceFetch, VeniceAPIError } from '../lib/venice-client'
 import type { MusicQueueRequest, MusicQueueResponse, MusicRetrieveResponse } from '../types/venice'
 
 const POLL_INTERVAL_MS = 3000
 const MAX_ATTEMPTS = 120 // ~6 minutes
+
+function isPermanentError(err: unknown): boolean {
+  return err instanceof VeniceAPIError && err.status >= 400 && err.status < 500
+}
 
 export function useMusic() {
   const [status, setStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle')
@@ -14,6 +18,8 @@ export function useMusic() {
   const pollRef = useRef<ReturnType<typeof setInterval>>(undefined)
   const tickRef = useRef<ReturnType<typeof setInterval>>(undefined)
   const requestIdRef = useRef<string | null>(null)
+  const modelRef = useRef<string | null>(null)
+  const audioUrlRef = useRef<string | null>(null)
   const startedAtRef = useRef<number | null>(null)
   const attemptsRef = useRef(0)
   const cancelledRef = useRef(false)
@@ -44,13 +50,32 @@ export function useMusic() {
         return
       }
       try {
-        const result = await venice<MusicRetrieveResponse>('/audio/retrieve', {
+        // /audio/retrieve returns one of two things:
+        //  - JSON {status:"PROCESSING"} while still processing
+        //  - binary audio body (audio/mpeg, etc.) once complete
+        // Branch on Content-Type rather than calling res.json()
+        // unconditionally, which breaks on the binary case.
+        const res = await veniceFetch('/audio/retrieve', {
           method: 'POST',
-          body: JSON.stringify({ id: requestIdRef.current }),
+          body: JSON.stringify({ model: modelRef.current, queue_id: requestIdRef.current }),
         })
+        const contentType = res.headers.get('content-type') ?? ''
+
+        if (contentType.startsWith('audio/')) {
+          const blob = await res.blob()
+          const url = URL.createObjectURL(blob)
+          audioUrlRef.current = url
+          setAudioUrl(url)
+          setStatus('completed')
+          stopPolling()
+          return
+        }
+
+        const result = (await res.json()) as MusicRetrieveResponse
         const s = result.status.toLowerCase() as 'queued' | 'processing' | 'completed' | 'failed'
         setStatus(s)
         if (s === 'completed' && result.audio_url) {
+          audioUrlRef.current = result.audio_url
           setAudioUrl(result.audio_url)
           stopPolling()
         } else if (s === 'failed') {
@@ -58,6 +83,14 @@ export function useMusic() {
           stopPolling()
         }
       } catch (err) {
+        // Permanent client errors (e.g. 400 "Model is required") must not be
+        // retried for minutes — surface them immediately.
+        if (isPermanentError(err)) {
+          stopPolling()
+          setError(err instanceof Error ? err.message : 'Polling failed')
+          setStatus('failed')
+          return
+        }
         if (attemptsRef.current >= MAX_ATTEMPTS) {
           setError(err instanceof Error ? err.message : 'Polling failed')
           stopPolling()
@@ -74,9 +107,11 @@ export function useMusic() {
       }),
     onSuccess: (data) => {
       cancelledRef.current = false
+      modelRef.current = data.model
       requestIdRef.current = data.queue_id
       setStatus('queued')
       setAudioUrl(null)
+      audioUrlRef.current = null
       setError(null)
       startPolling()
     },
@@ -92,8 +127,13 @@ export function useMusic() {
     setStatus('idle')
     setError(null)
     requestIdRef.current = null
+    modelRef.current = null
     startedAtRef.current = null
     setElapsedMs(0)
+    if (audioUrlRef.current && audioUrlRef.current.startsWith('blob:')) {
+      URL.revokeObjectURL(audioUrlRef.current)
+    }
+    audioUrlRef.current = null
   }, [stopPolling])
 
   const reset = useCallback(() => {

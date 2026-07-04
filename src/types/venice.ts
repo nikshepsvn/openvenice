@@ -237,6 +237,7 @@ export interface VideoQueueResponse {
   model: string
   queue_id: string
   id?: string
+  download_url?: string
 }
 
 export interface VideoRetrieveResponse {
